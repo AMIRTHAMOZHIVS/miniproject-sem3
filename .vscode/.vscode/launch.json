@@ -1,0 +1,14 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "java",
+      "name": "Run ChatMain",
+      "request": "launch",
+      "mainClass": "ChatMain",
+      "classPaths": [
+        "${workspaceFolder}/mysql-connector-j-9.5.0.jar"
+      ]
+    }
+  ]
+}

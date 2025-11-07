@@ -1,29 +1,31 @@
-import java.util.*;
+import java.sql.Connection;
+import java.sql.DriverManager;
 
 public class ChatMain {
     public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in);
-        ChatBotBrain bot = new ChatBotBrain();
+        Connection conn = null;
 
-        System.out.println("Type 'hi' to start the Smart Health ChatBot or 'bye' to exit.");
+        try {
+            conn = DriverManager.getConnection(
+                "jdbc:mysql://localhost:3306/smartbotdb", "root", "As24fa02@hi");
 
-        while (true) {
-            System.out.print("You: ");
-            String input = scanner.nextLine().trim().toLowerCase();
+            DatabaseService db = new DatabaseManager(conn);
+            ChatBotBrain bot = new ChatBotBrain(db);
+            bot.startSymptomCheck();
 
-            if (input.equals("hi")) {
-                System.out.println("Hello! I will ask you about a few symptoms to help identify possible diseases.");
-                System.out.println("Please respond with 'y' for yes and 'n' for no.\n");
-                bot.startSymptomCheck();
-                System.out.println("\nIf you want to check again, type 'hi'. To exit, type 'bye'.");
-            } else if (input.equals("bye")) {
-                System.out.println("Goodbye! Stay healthy and take care.");
-                break;
-            } else {
-                System.out.println("Please type 'hi' to start or 'bye' to exit.");
+        } catch (Exception e) {
+            System.err.println(" Error connecting to database or running chatbot:");
+            e.printStackTrace();
+        } finally {
+            try {
+                if (conn != null && !conn.isClosed()) {
+                    conn.close();
+                    System.out.println("✅ Database connection closed.");
+                }
+            } catch (Exception e) {
+                System.err.println("⚠️ Error closing database connection:");
+                e.printStackTrace();
             }
         }
-
-        scanner.close();
     }
 }

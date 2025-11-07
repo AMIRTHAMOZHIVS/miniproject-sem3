@@ -1,83 +1,77 @@
 import java.sql.*;
 import java.util.*;
 
-public class DatabaseManager {
+public class DatabaseManager implements DatabaseService {
     private Connection conn;
 
-    public DatabaseManager() {
-        try {
-            Class.forName("com.mysql.cj.jdbc.Driver");
-            conn = DriverManager.getConnection(
-                "jdbc:mysql://localhost:3306/smartbotdb", "root", "As24fa02@hi");
-            System.out.println("MySQL connected!");
-        } catch (Exception e) {
-            System.out.println("Connection failed: " + e.getMessage());
-        }
+    public DatabaseManager(Connection conn) {
+        this.conn = conn;
     }
 
+    @Override
     public List<String> getAllSymptoms() {
         List<String> symptoms = new ArrayList<>();
-        try {
-            String query = "SELECT DISTINCT symptom FROM symptoms_diseases";
-            PreparedStatement stmt = conn.prepareStatement(query);
-            ResultSet rs = stmt.executeQuery();
+        String query = "SELECT DISTINCT symptom FROM symptoms_diseases";
+        try (Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(query)) {
             while (rs.next()) {
                 symptoms.add(rs.getString("symptom"));
             }
         } catch (SQLException e) {
-            System.out.println("Error fetching symptoms: " + e.getMessage());
+            e.printStackTrace();
         }
         return symptoms;
     }
 
+    @Override
     public Map<String, Integer> getDiseaseMatchCount(List<String> userSymptoms) {
         Map<String, Integer> matchCount = new HashMap<>();
-        try {
+        String query = "SELECT disease FROM symptoms_diseases WHERE symptom = ?";
+        try (PreparedStatement stmt = conn.prepareStatement(query)) {
             for (String symptom : userSymptoms) {
-                String query = "SELECT disease FROM symptoms_diseases WHERE symptom = ?";
-                PreparedStatement stmt = conn.prepareStatement(query);
                 stmt.setString(1, symptom);
-                ResultSet rs = stmt.executeQuery();
-                while (rs.next()) {
-                    String disease = rs.getString("disease");
-                    matchCount.put(disease, matchCount.getOrDefault(disease, 0) + 1);
+                try (ResultSet rs = stmt.executeQuery()) {
+                    while (rs.next()) {
+                        String disease = rs.getString("disease");
+                        matchCount.put(disease, matchCount.getOrDefault(disease, 0) + 1);
+                    }
                 }
             }
         } catch (SQLException e) {
-            System.out.println("Error matching diseases: " + e.getMessage());
+            e.printStackTrace();
         }
         return matchCount;
     }
 
+    @Override
     public int getTotalSymptomsForDisease(String disease) {
-        int count = 0;
-        try {
-            String query = "SELECT COUNT(*) FROM symptoms_diseases WHERE disease = ?";
-            PreparedStatement stmt = conn.prepareStatement(query);
+        String query = "SELECT COUNT(*) FROM symptoms_diseases WHERE disease = ?";
+        try (PreparedStatement stmt = conn.prepareStatement(query)) {
             stmt.setString(1, disease);
-            ResultSet rs = stmt.executeQuery();
-            if (rs.next()) {
-                count = rs.getInt(1);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getInt(1);
+                }
             }
         } catch (SQLException e) {
-            System.out.println("Error counting symptoms: " + e.getMessage());
+            e.printStackTrace();
         }
-        return count;
+        return 0;
     }
 
+    @Override
     public String getDiseaseDescription(String disease) {
-        String description = "No description available.";
-        try {
-            String query = "SELECT description FROM symptoms_diseases WHERE disease = ? LIMIT 1";
-            PreparedStatement stmt = conn.prepareStatement(query);
+        String query = "SELECT description FROM symptoms_diseases WHERE disease = ? AND description IS NOT NULL LIMIT 1";
+        try (PreparedStatement stmt = conn.prepareStatement(query)) {
             stmt.setString(1, disease);
-            ResultSet rs = stmt.executeQuery();
-            if (rs.next()) {
-                description = rs.getString("description");
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getString("description");
+                }
             }
         } catch (SQLException e) {
-            System.out.println("Error fetching description: " + e.getMessage());
+            e.printStackTrace();
         }
-        return description;
+        return "No description available.";
     }
 }

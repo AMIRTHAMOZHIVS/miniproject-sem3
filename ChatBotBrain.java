@@ -1,72 +1,111 @@
 import java.util.*;
 
-public class ChatBotBrain {
-    private DatabaseManager db;
+class BaseChatBot {
+    protected DatabaseService db;
 
-    public ChatBotBrain() {
-        db = new DatabaseManager();
+    public BaseChatBot(DatabaseService db) {
+        this.db = db;
+    }
+
+    public void greetUser() {
+        System.out.println(" Hi! Let's begin your symptom check.");
+        System.out.println("Type 'bye' anytime to exit.\n");
+    }
+
+    public List<String> getShuffledSymptoms(int maxSymptoms) {
+        List<String> allSymptoms = db.getAllSymptoms();
+        Collections.shuffle(allSymptoms);
+        return allSymptoms.subList(0, Math.min(maxSymptoms, allSymptoms.size()));
+    }
+}
+
+public class ChatBotBrain extends BaseChatBot {
+
+    public ChatBotBrain(DatabaseService db) {
+        super(db); // ✅ Inherit db from BaseChatBot
     }
 
     public void startSymptomCheck() {
         Scanner scanner = new Scanner(System.in);
-        List<String> userSymptoms = new ArrayList<>();
-        List<String> allSymptoms = db.getAllSymptoms();
 
-        if (allSymptoms.isEmpty()) {
-            System.out.println("No symptoms found in database.");
+        System.out.print("Type 'hi' to start: ");
+        String startInput = scanner.nextLine().trim().toLowerCase();
+        if (!startInput.equals("hi")) {
+            System.out.println(" Invalid start. Type 'hi' to begin.");
             return;
         }
 
-        Collections.shuffle(allSymptoms);
-        List<String> selectedSymptoms = allSymptoms.subList(0, Math.min(10, allSymptoms.size()));
+        greetUser(); // ✅ inherited method
 
-        System.out.println("I will ask you about a few symptoms. Please answer with 'y' or 'n'. Type 'bye' anytime to exit.\n");
+        List<String> selectedSymptoms = getShuffledSymptoms(10);
+        List<String> userSymptoms = new ArrayList<>();
 
         for (int i = 0; i < selectedSymptoms.size(); i++) {
             String symptom = selectedSymptoms.get(i);
-            String reply = "";
-
             while (true) {
                 System.out.printf("(%d/%d) Do you have %s? (y/n): ", i + 1, selectedSymptoms.size(), symptom);
-                reply = scanner.nextLine().trim().toLowerCase();
+                String response = scanner.nextLine().trim().toLowerCase();
 
-                if (reply.equals("bye")) {
-                    System.out.println("Chat ended by user. Stay safe! 👋");
+                if (response.equals("bye")) {
+                    System.out.println(" Bye! Take care.");
                     return;
-                } else if (reply.equals("y")) {
+                } else if (response.equals("y")) {
                     userSymptoms.add(symptom);
                     break;
-                } else if (reply.equals("n")) {
+                } else if (response.equals("n")) {
                     break;
                 } else {
-                    System.out.println("❌ Invalid input. Please type 'y' for yes or 'n' for no.");
+                    System.out.println(" Invalid input. Please type 'y' or 'n'.");
                 }
             }
         }
 
         Map<String, Integer> diseaseMatch = db.getDiseaseMatchCount(userSymptoms);
+
         if (diseaseMatch.isEmpty()) {
-            System.out.println("No matching disease found.");
+            System.out.println("\n No matching disease found based on your symptoms.");
         } else {
-            String bestDisease = null;
-            int maxMatched = 0;
+            List<DiseaseMatch> matchList = new ArrayList<>();
 
             for (Map.Entry<String, Integer> entry : diseaseMatch.entrySet()) {
-                if (entry.getValue() > maxMatched) {
-                    bestDisease = entry.getKey();
-                    maxMatched = entry.getValue();
-                }
+                String disease = entry.getKey();
+                int matchedCount = entry.getValue();
+                int totalSymptoms = db.getTotalSymptomsForDisease(disease);
+
+                double percentage = (totalSymptoms > 0)
+                    ? ((double) matchedCount / totalSymptoms) * 100
+                    : 0;
+
+                matchList.add(new DiseaseMatch(disease, matchedCount, totalSymptoms, percentage));
             }
 
-            if (bestDisease != null) {
-                int total = db.getTotalSymptomsForDisease(bestDisease);
-                double matchPercentage = (total > 0) ? ((double) maxMatched / total) * 100 : 0;
-                String description = db.getDiseaseDescription(bestDisease);
+            matchList.sort((a, b) -> Double.compare(b.percentage, a.percentage));
 
-                System.out.println("\nBased on your symptoms, the most likely disease is:");
-                System.out.printf("%s — Match Percentage: %.1f%%\n", bestDisease, matchPercentage);
-                System.out.println("Description: " + description);
-            }
+          System.out.println("\n🩺 Most Likely Disease Match:");
+
+DiseaseMatch top = matchList.get(0); // only top 1
+
+System.out.printf("\nDisease: %s\nMatched: %d/%d\nMatch Percentage: %.1f%%\n",
+                  top.disease, top.matchedCount, top.totalSymptoms, top.percentage);
+
+String description = db.getDiseaseDescription(top.disease);
+System.out.println("Description: " + description);
+        }
+
+        System.out.println("\n Chat ended. Stay healthy!");
+    }
+
+    private static class DiseaseMatch {
+        String disease;
+        int matchedCount;
+        int totalSymptoms;
+        double percentage;
+
+        DiseaseMatch(String disease, int matchedCount, int totalSymptoms, double percentage) {
+            this.disease = disease;
+            this.matchedCount = matchedCount;
+            this.totalSymptoms = totalSymptoms;
+            this.percentage = percentage;
         }
     }
 }
